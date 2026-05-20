@@ -11,8 +11,6 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-
-  const [emergencyMode, setEmergencyMode] = useState(false);
   const [offlineMode, setOfflineMode] = useState(false);
 
   const bottomRef = useRef<HTMLDivElement | null>(null);
@@ -22,180 +20,141 @@ export default function ChatPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
-  /* 🔊 + 📳 EMERGENCY EFFECTS */
-  function triggerEmergencyEffects(text: string) {
-    try {
-      if (navigator.vibrate) {
-        navigator.vibrate([200, 100, 200, 100, 400]);
-      }
-
-      if ("speechSynthesis" in window) {
-        const speech = new SpeechSynthesisUtterance(text);
-        speech.rate = 1;
-        speech.pitch = 1;
-        window.speechSynthesis.speak(speech);
-      }
-    } catch (err) {
-      console.log("Effects error:", err);
-    }
-  }
-
-  /* OFFLINE RESPONSE ENGINE */
-  function getOfflineResponse() {
-    return {
-      level: "UNKNOWN",
-      condition: "Offline mode active. Limited emergency guidance available.",
-      steps: [
-        "Stay calm",
-        "Move to safety if possible",
-        "Call for nearby help",
-        "Reconnect to internet when possible",
-      ],
-    };
-  }
-
   /* SEND MESSAGE */
   async function handleSend() {
     if (!input.trim() || loading) return;
 
-    const currentInput = input;
-
-    const userMessage: Message = {
-      role: "user",
-      content: currentInput,
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
+    const userText = input;
     setInput("");
+
+    // ✅ Add user message ONCE
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content: userText },
+    ]);
+
+    /* -----------------------------
+       OFFLINE MODE (FAST RESPONSE)
+    ------------------------------*/
+    if (offlineMode) {
+      const offlineReply: Message = {
+        role: "ai",
+        content: `Emergency Level: UNKNOWN
+
+Condition:
+Offline mode active. Limited emergency guidance available.
+
+Steps:
+• Stay calm
+• Move to a safe location
+• Seek human assistance if possible`,
+      };
+
+      setMessages((prev) => [...prev, offlineReply]);
+      return; // ❗ NO loading state in offline mode
+    }
+
+    /* -----------------------------
+       ONLINE MODE
+    ------------------------------*/
     setLoading(true);
 
     try {
-      let data;
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: userText }),
+      });
 
-      // ✅ OFFLINE LOGIC ONLY HERE (NO UI IMPACT)
-      const isOffline = offlineMode || !navigator.onLine;
+      if (!res.ok) throw new Error("API request failed");
 
-      if (isOffline) {
-        data = { response: getOfflineResponse() };
-      } else {
-        const res = await fetch("/api/chat", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ message: currentInput }),
-        });
-
-        data = await res.json();
-      }
-
-      const response = data.response;
-
-      // 🚨 EMERGENCY MODE TRIGGER
-      if (response.level === "HIGH") {
-        setEmergencyMode(true);
-        triggerEmergencyEffects(response.condition);
-      }
+      const data = await res.json();
 
       const aiMessage: Message = {
         role: "ai",
         content: `
-Emergency Level: ${response.level}
+Emergency Level: ${data?.response?.level ?? "UNKNOWN"}
 
 Condition:
-${response.condition}
+${data?.response?.condition ?? "No response received"}
 
 Steps:
-${response.steps.map((s: string) => `• ${s}`).join("\n")}
+${(data?.response?.steps ?? [])
+  .map((s: string) => `• ${s}`)
+  .join("\n")}
         `,
       };
 
       setMessages((prev) => [...prev, aiMessage]);
     } catch (error) {
-      console.error(error);
+      console.error("Chat API Error:", error);
 
-      const fallback: Message = {
-        role: "ai",
-        content: `
-Emergency Level: UNKNOWN
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "ai",
+          content: `Emergency Level: UNKNOWN
 
 Condition:
-System error occurred. Switching to safe mode.
+Unable to reach Guardian AI servers.
 
 Steps:
 • Check internet connection
 • Retry request
-• Use offline emergency procedures
-        `,
-      };
-
-      setMessages((prev) => [...prev, fallback]);
+• Use offline mode if needed`,
+        },
+      ]);
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <main className="min-h-screen bg-gray-950 text-white flex flex-col relative">
-
-      {/* 🚨 EMERGENCY OVERLAY */}
-      {emergencyMode && (
-        <div className="fixed inset-0 z-50 bg-red-950/90 flex items-center justify-center animate-pulse">
-          <div className="text-center p-6">
-            <h1 className="text-4xl font-black text-red-400">
-              EMERGENCY MODE
-            </h1>
-            <p className="mt-4 text-gray-200">
-              Follow instructions carefully
-            </p>
-            <button
-              onClick={() => setEmergencyMode(false)}
-              className="mt-6 px-6 py-3 bg-black rounded-xl"
-            >
-              Acknowledge
-            </button>
-          </div>
-        </div>
-      )}
+    <main className="min-h-screen bg-gray-950 text-white flex flex-col">
 
       {/* HEADER */}
-      <header className="border-b border-gray-800 bg-gray-950/80 backdrop-blur sticky top-0 z-40">
-        <div className="max-w-5xl mx-auto px-4 py-4">
-          <h1 className="text-2xl font-bold">Guardian AI</h1>
+      <header className="border-b border-gray-800 bg-gray-950/80 backdrop-blur sticky top-0 z-50">
+        <div className="max-w-5xl mx-auto px-4 py-4 flex justify-between items-center">
 
-          <p className="text-sm text-gray-400 mt-1">
-            Emergency Assistant • From Jalixon
-          </p>
+          <div>
+            <h1 className="text-2xl font-bold">Guardian AI</h1>
+            <p className="text-sm text-gray-400 mt-1">
+              AI Emergency Assistant • From Jalixon
+            </p>
+          </div>
 
           {/* OFFLINE TOGGLE */}
           <button
-            onClick={() => setOfflineMode((prev) => !prev)}
-            className={`mt-2 px-3 py-1 rounded-lg text-sm border transition ${
+            onClick={() => setOfflineMode((p) => !p)}
+            className={`px-3 py-2 rounded-xl text-sm font-semibold transition ${
               offlineMode
-                ? "bg-yellow-600 border-yellow-500"
-                : "bg-gray-800 border-gray-700"
+                ? "bg-yellow-600 text-black"
+                : "bg-gray-800 text-white"
             }`}
           >
-            {offlineMode ? "Offline Mode ON" : "Offline Mode OFF"}
+            {offlineMode ? "Offline ON" : "Online Mode"}
           </button>
+
         </div>
       </header>
 
-      {/* CHAT AREA */}
+      {/* CHAT */}
       <section className="flex-1 overflow-y-auto">
         <div className="max-w-5xl mx-auto px-4 py-6 space-y-4">
 
+          {/* EMPTY STATE */}
           {messages.length === 0 && (
             <div className="border border-gray-800 bg-gray-900 rounded-2xl p-6 text-gray-400">
               <h2 className="text-xl font-semibold text-white mb-3">
                 Emergency Assistant Ready
               </h2>
               <p>
-                Describe your emergency situation clearly to receive structured guidance.
+                Describe your emergency situation clearly to receive guidance.
               </p>
             </div>
           )}
 
+          {/* MESSAGES */}
           {messages.map((msg, index) => (
             <div
               key={index}
@@ -215,7 +174,9 @@ Steps:
           {/* LOADING */}
           {loading && (
             <div className="bg-gray-900 border border-red-900 rounded-2xl p-5 max-w-xs">
-              <p className="text-xs text-gray-500 mb-2">Guardian AI</p>
+              <p className="text-xs uppercase text-gray-500 mb-3">
+                Guardian AI
+              </p>
               <div className="flex gap-2">
                 <div className="w-2 h-2 bg-red-500 rounded-full animate-bounce"></div>
                 <div className="w-2 h-2 bg-red-500 rounded-full animate-bounce delay-150"></div>
@@ -232,26 +193,28 @@ Steps:
       <footer className="border-t border-gray-800 bg-gray-950">
         <div className="max-w-5xl mx-auto p-4 flex gap-3">
 
-          {/* ✅ INPUT ALWAYS ENABLED */}
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSend()}
-            placeholder="Describe your emergency..."
+            placeholder={
+              offlineMode
+                ? "Offline mode active..."
+                : "Describe your emergency..."
+            }
             className="flex-1 bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 outline-none focus:border-red-600"
           />
 
           <button
             onClick={handleSend}
             disabled={loading}
-            className="px-6 py-3 bg-red-600 hover:bg-red-700 disabled:opacity-50 rounded-xl font-semibold"
+            className="px-6 py-3 bg-red-600 hover:bg-red-700 disabled:opacity-50 rounded-xl font-semibold transition"
           >
             {loading ? "Thinking..." : "Send"}
           </button>
 
         </div>
       </footer>
-
     </main>
   );
 }
