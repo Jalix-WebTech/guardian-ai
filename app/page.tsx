@@ -106,11 +106,11 @@ Steps:
         <div className="max-w-5xl mx-auto px-4 py-4">
 
           <h1 className="text-2xl font-bold">
-            Guardian AI From Jalixon
+            Guardian AI
           </h1>
 
           <p className="text-sm text-gray-400 mt-1">
-            AI-powered Emergency & Survival Assistant
+            AI-powered Emergency & Survival Assistant  From Jalixon
           </p>
 
         </div>
