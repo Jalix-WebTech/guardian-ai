@@ -11,6 +11,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+
   const [emergencyMode, setEmergencyMode] = useState(false);
   const [offlineMode, setOfflineMode] = useState(false);
 
@@ -25,31 +26,30 @@ export default function ChatPage() {
   function triggerEmergencyEffects(text: string) {
     try {
       if (navigator.vibrate) {
-        navigator.vibrate([300, 200, 300, 200, 500]);
+        navigator.vibrate([200, 100, 200, 100, 400]);
       }
 
       if ("speechSynthesis" in window) {
         const speech = new SpeechSynthesisUtterance(text);
         speech.rate = 1;
         speech.pitch = 1;
-        speech.volume = 1;
         window.speechSynthesis.speak(speech);
       }
     } catch (err) {
-      console.log("Emergency effects failed:", err);
+      console.log("Effects error:", err);
     }
   }
 
-  /* OFFLINE FALLBACK RESPONSE */
-  function getOfflineResponse(message: string) {
+  /* OFFLINE RESPONSE ENGINE */
+  function getOfflineResponse() {
     return {
       level: "UNKNOWN",
       condition: "Offline mode active. Limited emergency guidance available.",
       steps: [
-        "Stay calm and assess situation",
-        "Move to a safe location if possible",
-        "Seek nearby human assistance",
-        "Reconnect to network when available",
+        "Stay calm",
+        "Move to safety if possible",
+        "Call for nearby help",
+        "Reconnect to internet when possible",
       ],
     };
   }
@@ -72,9 +72,11 @@ export default function ChatPage() {
     try {
       let data;
 
-      /* 🌐 OFFLINE MODE CHECK */
-      if (offlineMode || !navigator.onLine) {
-        data = { response: getOfflineResponse(currentInput) };
+      // ✅ OFFLINE LOGIC ONLY HERE (NO UI IMPACT)
+      const isOffline = offlineMode || !navigator.onLine;
+
+      if (isOffline) {
+        data = { response: getOfflineResponse() };
       } else {
         const res = await fetch("/api/chat", {
           method: "POST",
@@ -89,7 +91,7 @@ export default function ChatPage() {
 
       const response = data.response;
 
-      /* 🚨 EMERGENCY TRIGGER */
+      // 🚨 EMERGENCY MODE TRIGGER
       if (response.level === "HIGH") {
         setEmergencyMode(true);
         triggerEmergencyEffects(response.condition);
@@ -112,8 +114,8 @@ ${response.steps.map((s: string) => `• ${s}`).join("\n")}
     } catch (error) {
       console.error(error);
 
-      const fallback = {
-        role: "ai" as const,
+      const fallback: Message = {
+        role: "ai",
         content: `
 Emergency Level: UNKNOWN
 
@@ -138,16 +140,14 @@ Steps:
 
       {/* 🚨 EMERGENCY OVERLAY */}
       {emergencyMode && (
-        <div className="fixed inset-0 z-50 bg-red-950/90 animate-pulse flex items-center justify-center">
+        <div className="fixed inset-0 z-50 bg-red-950/90 flex items-center justify-center animate-pulse">
           <div className="text-center p-6">
             <h1 className="text-4xl font-black text-red-400">
               EMERGENCY MODE
             </h1>
-
             <p className="mt-4 text-gray-200">
               Follow instructions carefully
             </p>
-
             <button
               onClick={() => setEmergencyMode(false)}
               className="mt-6 px-6 py-3 bg-black rounded-xl"
@@ -164,13 +164,13 @@ Steps:
           <h1 className="text-2xl font-bold">Guardian AI</h1>
 
           <p className="text-sm text-gray-400 mt-1">
-            Emergency Assistant • Built by Jalixon
+            Emergency Assistant • From Jalixon
           </p>
 
           {/* OFFLINE TOGGLE */}
           <button
-            onClick={() => setOfflineMode(!offlineMode)}
-            className={`mt-2 px-3 py-1 rounded-lg text-sm border ${
+            onClick={() => setOfflineMode((prev) => !prev)}
+            className={`mt-2 px-3 py-1 rounded-lg text-sm border transition ${
               offlineMode
                 ? "bg-yellow-600 border-yellow-500"
                 : "bg-gray-800 border-gray-700"
@@ -231,21 +231,24 @@ Steps:
       {/* INPUT */}
       <footer className="border-t border-gray-800 bg-gray-950">
         <div className="max-w-5xl mx-auto p-4 flex gap-3">
+
+          {/* ✅ INPUT ALWAYS ENABLED */}
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSend()}
             placeholder="Describe your emergency..."
-            className="flex-1 bg-gray-900 border border-gray-700 rounded-xl px-4 py-3"
+            className="flex-1 bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 outline-none focus:border-red-600"
           />
 
           <button
             onClick={handleSend}
             disabled={loading}
-            className="px-6 py-3 bg-red-600 hover:bg-red-700 rounded-xl font-semibold"
+            className="px-6 py-3 bg-red-600 hover:bg-red-700 disabled:opacity-50 rounded-xl font-semibold"
           >
             {loading ? "Thinking..." : "Send"}
           </button>
+
         </div>
       </footer>
 
