@@ -106,7 +106,7 @@ Steps:
         <div className="max-w-5xl mx-auto px-4 py-4">
 
           <h1 className="text-2xl font-bold">
-            QuickPulse AI
+            Guadian Ai
           </h1>
 
           <p className="text-sm text-gray-400 mt-1">
@@ -179,7 +179,7 @@ Steps:
             <div className="bg-gray-900 border border-red-900 rounded-2xl p-5 max-w-xs">
 
               <p className="text-xs uppercase tracking-wider text-gray-500 mb-3">
-                Guardian AI
+                Guadian Ai
               </p>
 
               <div className="flex gap-2">
